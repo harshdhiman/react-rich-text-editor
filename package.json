@@ -1,6 +1,6 @@
 {
   "name": "@chaitrabhairappa/react-rich-text-editor",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "A high-performance rich text editor for React (web) — matching the design and behavior of react-native-rich-text-editor",
   "main": "lib/commonjs/index.js",
   "module": "lib/module/index.js",
@@ -16,6 +16,7 @@
     "build:types": "tsc --project tsconfig.build.json --declaration --emitDeclarationOnly --outDir lib/typescript",
     "typescript": "tsc --noEmit",
     "clean": "rm -rf lib",
+    "example": "npm run build && cd example && npm install && npm run dev",
     "prepublishOnly": "npm run clean && npm run build"
   },
   "keywords": [

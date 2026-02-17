@@ -1,10 +1,7 @@
 import React, { useRef, useCallback, useEffect, useState } from 'react';
-import { ActiveStylesState, ToolbarOption, DEFAULT_TOOLBAR_OPTIONS } from './types';
+import { ActiveStylesState, ToolbarOption } from './types';
 import { getIcon } from './ToolbarIcons';
 
-/**
- * Props for the FloatingToolbar component.
- */
 interface FloatingToolbarProps {
   position: { x: number; y: number };
   activeStyles: ActiveStylesState;
@@ -13,18 +10,16 @@ interface FloatingToolbarProps {
   visible: boolean;
 }
 
-// Toolbar design constants — matches the native iOS/Android floating toolbar
-const TOOLBAR_BG = '#2D2D2D';        // Dark background
-const ACTIVE_COLOR = '#5082C8';      // Blue highlight for active buttons
-const INACTIVE_COLOR = '#FFFFFF';    // White for inactive buttons
-const ACTIVE_BG = 'rgba(255, 255, 255, 0.15)'; // Subtle bg for active buttons
-const BUTTON_SIZE = 36;              // Button tap target size
-const BUTTON_SPACING = 8;           // Gap between buttons
-const TOOLBAR_HEIGHT = 52;          // Total toolbar height
-const ICON_SIZE = 20;               // SVG icon size
-const ARROW_WIDTH = 16;             // Scroll arrow width
+const TOOLBAR_BG = '#2D2D2D';
+const ACTIVE_COLOR = '#5082C8';
+const INACTIVE_COLOR = '#FFFFFF';
+const ACTIVE_BG = 'rgba(255, 255, 255, 0.15)';
+const BUTTON_SIZE = 36;
+const BUTTON_SPACING = 8;
+const TOOLBAR_HEIGHT = 52;
+const ICON_SIZE = 20;
+const ARROW_WIDTH = 16;
 
-/** Checks if a toolbar option is currently active based on the editor's active styles state. */
 const isOptionActive = (option: ToolbarOption, styles: ActiveStylesState): boolean => {
   switch (option) {
     case 'bold': return styles.bold;
@@ -45,11 +40,6 @@ const isOptionActive = (option: ToolbarOption, styles: ActiveStylesState): boole
   }
 };
 
-/**
- * A dark floating toolbar that appears when text is selected in the editor.
- * Renders as a fixed-position overlay with horizontally scrollable formatting buttons.
- * Uses onMouseDown preventDefault to avoid stealing focus from the editor.
- */
 export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
   position,
   activeStyles,
@@ -124,7 +114,6 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
       }}
       onMouseDown={(e) => e.preventDefault()}
     >
-      {/* Left arrow */}
       <div
         onClick={scrollLeft}
         style={{
@@ -143,7 +132,6 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
         &#x2039;
       </div>
 
-      {/* Scrollable button area */}
       <div
         ref={scrollRef}
         onScroll={handleScroll}
@@ -193,7 +181,6 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
         </div>
       </div>
 
-      {/* Right arrow */}
       <div
         onClick={scrollRight}
         style={{
@@ -212,7 +199,6 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
         &#x203A;
       </div>
 
-      {/* Hide scrollbar with injected style */}
       <style>{`
         div::-webkit-scrollbar { display: none; }
       `}</style>

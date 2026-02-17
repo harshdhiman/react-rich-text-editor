@@ -21,11 +21,6 @@ import {
 } from './types';
 import { FloatingToolbar } from './FloatingToolbar';
 
-// ===================== DOM Utilities =====================
-// These functions handle parsing the contentEditable DOM into structured Block data
-// and converting Block data back into HTML for the editor.
-
-/** Extracts plain text and inline style ranges from a DOM element by walking its children. */
 function extractInlineStyles(element: HTMLElement): { text: string; styles: StyleRange[] } {
   let text = '';
   const styles: StyleRange[] = [];
@@ -65,7 +60,6 @@ function extractInlineStyles(element: HTMLElement): { text: string; styles: Styl
         if (tag === 'a') {
           styles.push({ style: 'link', start, end, url: el.getAttribute('href') || '' });
         }
-        // Handle span-based styles (some browsers use spans)
         if (tag === 'span') {
           const cs = el.style;
           if (cs.fontWeight === 'bold' || parseInt(cs.fontWeight) >= 700) {
@@ -101,14 +95,12 @@ function extractInlineStyles(element: HTMLElement): { text: string; styles: Styl
   return { text, styles };
 }
 
-/** Parses the editor's DOM children into an array of structured Block objects. */
 function parseBlocksFromDOM(editor: HTMLElement): Block[] {
   const blocks: Block[] = [];
 
   function processElement(el: HTMLElement) {
     const tag = el.tagName.toLowerCase();
 
-    // Handle list containers
     if (tag === 'ul') {
       for (let i = 0; i < el.children.length; i++) {
         const li = el.children[i] as HTMLElement;
@@ -132,7 +124,6 @@ function parseBlocksFromDOM(editor: HTMLElement): Block[] {
       return;
     }
 
-    // Headings
     if (/^h[1-6]$/.test(tag)) {
       const { text, styles } = extractInlineStyles(el);
       const alignment = getElementAlignment(el);
@@ -140,7 +131,6 @@ function parseBlocksFromDOM(editor: HTMLElement): Block[] {
       return;
     }
 
-    // Blockquote
     if (tag === 'blockquote') {
       const { text, styles } = extractInlineStyles(el);
       const alignment = getElementAlignment(el);
@@ -148,7 +138,6 @@ function parseBlocksFromDOM(editor: HTMLElement): Block[] {
       return;
     }
 
-    // Checklist items
     if (el.dataset.type === 'checklist') {
       const checked = el.dataset.checked === 'true';
       const textEl = el.querySelector('[data-checklist-text]') as HTMLElement;
@@ -164,13 +153,11 @@ function parseBlocksFromDOM(editor: HTMLElement): Block[] {
       return;
     }
 
-    // Default: paragraph (div, p, or other block elements)
     if (tag === 'p' || tag === 'div' || tag === 'br') {
       if (tag === 'br') {
         blocks.push({ type: 'paragraph', text: '', styles: [] });
         return;
       }
-      // Skip empty divs that are just containers
       const { text, styles } = extractInlineStyles(el);
       const alignment = getElementAlignment(el);
       blocks.push({ type: 'paragraph', text, styles, alignment });
@@ -213,7 +200,6 @@ function getElementAlignment(el: HTMLElement): TextAlignment | undefined {
   return undefined;
 }
 
-/** Converts an array of Block objects back into HTML for the contentEditable editor. */
 function blocksToHTML(blocks: Block[]): string {
   let html = '';
   let i = 0;
@@ -276,14 +262,60 @@ function blocksToHTML(blocks: Block[]): string {
   return html;
 }
 
+function blocksToInlineHTML(blocks: Block[]): string {
+  const parts: string[] = [];
+  let numberedIndex = 0;
+
+  for (let i = 0; i < blocks.length; i++) {
+    const block = blocks[i];
+    const styledText = applyStylesToText(block.text, block.styles);
+    if (!styledText) continue;
+
+    let prefix = '';
+    let wrapStart = '';
+    let wrapEnd = '';
+
+    switch (block.type) {
+      case 'heading':
+        wrapStart = '<strong>';
+        wrapEnd = '</strong>';
+        break;
+      case 'bullet':
+        prefix = '• ';
+        numberedIndex = 0;
+        break;
+      case 'numbered':
+        numberedIndex++;
+        prefix = `${numberedIndex}. `;
+        break;
+      case 'quote':
+        wrapStart = '<span style="color:#666;font-style:italic">';
+        wrapEnd = '</span>';
+        break;
+      case 'checklist':
+        prefix = block.checked ? '☑ ' : '☐ ';
+        break;
+      default:
+        numberedIndex = 0;
+        break;
+    }
+
+    if (block.type !== 'numbered') {
+      numberedIndex = block.type === 'bullet' ? numberedIndex : 0;
+    }
+
+    parts.push(`${wrapStart}${prefix}${styledText}${wrapEnd}`);
+  }
+
+  return parts.join('<br>');
+}
+
 function applyStylesToText(text: string, styles: StyleRange[]): string {
   if (!text) return '';
   if (styles.length === 0) return escapeHTML(text);
 
-  // Sort styles by start position
   const sorted = [...styles].sort((a, b) => a.start - b.start || b.end - a.end);
 
-  // Build character-level style map
   const chars: { char: string; tags: string[] }[] = [];
   for (let i = 0; i < text.length; i++) {
     chars.push({ char: text[i], tags: [] });
@@ -305,7 +337,6 @@ function applyStylesToText(text: string, styles: StyleRange[]): string {
     }
   }
 
-  // Group consecutive characters with same tags
   let result = '';
   let currentTags: string[] = [];
   let currentText = '';
@@ -354,10 +385,6 @@ function escapeAttr(text: string): string {
   return text.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
-// ===================== Active Styles Detection =====================
-// Detects which formatting styles are currently active at the cursor position
-// by walking up the DOM tree from the selection anchor and checking tags/computed styles.
-
 function detectActiveStyles(editor: HTMLElement): ActiveStylesState {
   const sel = window.getSelection();
   if (!sel || sel.rangeCount === 0) {
@@ -378,7 +405,6 @@ function detectActiveStyles(editor: HTMLElement): ActiveStylesState {
   let blockType: string = 'paragraph';
   let alignment: string = 'left';
 
-  // Walk up from cursor/selection to check inline styles
   let node: Node | null = range.startContainer;
   while (node && node !== editor) {
     if (node.nodeType === Node.ELEMENT_NODE) {
@@ -392,7 +418,6 @@ function detectActiveStyles(editor: HTMLElement): ActiveStylesState {
       if (tag === 'code') code = true;
       if (tag === 'mark') highlight = true;
 
-      // Check span styles
       if (tag === 'span') {
         const cs = el.style;
         if (cs.fontWeight === 'bold' || parseInt(cs.fontWeight) >= 700) bold = true;
@@ -408,7 +433,6 @@ function detectActiveStyles(editor: HTMLElement): ActiveStylesState {
         }
       }
 
-      // Block type detection
       if (/^h[1-6]$/.test(tag)) blockType = 'heading';
       if (tag === 'blockquote') blockType = 'quote';
       if (tag === 'li') {
@@ -421,7 +445,6 @@ function detectActiveStyles(editor: HTMLElement): ActiveStylesState {
       }
       if (el.dataset.type === 'checklist') blockType = 'checklist';
 
-      // Alignment
       if (el.style.textAlign) {
         alignment = el.style.textAlign;
       }
@@ -429,7 +452,6 @@ function detectActiveStyles(editor: HTMLElement): ActiveStylesState {
     node = node.parentNode;
   }
 
-  // Also check computed style for bold/italic
   const computed = window.getComputedStyle(range.startContainer.parentElement || editor);
   if (!bold && (computed.fontWeight === 'bold' || parseInt(computed.fontWeight) >= 700)) {
     bold = true;
@@ -454,15 +476,6 @@ function defaultActiveStyles(): ActiveStylesState {
   };
 }
 
-// ===================== Editor Component =====================
-
-/**
- * A rich text editor component built with contentEditable.
- * Provides a floating toolbar for text formatting, block-based content model,
- * delta-based change tracking, and a full imperative API via ref.
- *
- * Designed to match the design and behavior of @chaitrabhairappa/react-native-rich-text-editor.
- */
 const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>((props, ref) => {
   const {
     style,
@@ -470,6 +483,7 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>((props
     placeholder = '',
     initialContent,
     readOnly = false,
+    numberOfLines,
     maxHeight,
     showToolbar = true,
     toolbarOptions = DEFAULT_TOOLBAR_OPTIONS,
@@ -493,7 +507,6 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>((props
   const isInternalChangeRef = useRef(false);
   const hideToolbarTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // ===== Initialize content =====
   useEffect(() => {
     if (initialContent && initialContent.length > 0 && editorRef.current) {
       isInternalChangeRef.current = true;
@@ -504,7 +517,7 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>((props
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ===== Content change handler =====
+
   const emitContentChange = useCallback((delta?: ContentDelta) => {
     if (!editorRef.current || !onContentChange) return;
 
@@ -520,7 +533,6 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>((props
     previousTextRef.current = text;
   }, [onContentChange]);
 
-  // ===== Input handler =====
   const handleInput = useCallback(() => {
     if (isInternalChangeRef.current) return;
 
@@ -532,10 +544,8 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>((props
 
     setIsEmpty(!newText || newText === '\n');
 
-    // Compute delta
     let delta: ContentDelta | undefined;
     if (newText.length > prevText.length) {
-      // Insert
       const diffLen = newText.length - prevText.length;
       let pos = 0;
       while (pos < prevText.length && prevText[pos] === newText[pos]) pos++;
@@ -545,7 +555,6 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>((props
         text: newText.substring(pos, pos + diffLen),
       };
     } else if (newText.length < prevText.length) {
-      // Delete
       const diffLen = prevText.length - newText.length;
       let pos = 0;
       while (pos < newText.length && prevText[pos] === newText[pos]) pos++;
@@ -555,7 +564,6 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>((props
         length: diffLen,
       };
     } else if (newText !== prevText) {
-      // Replace
       let pos = 0;
       while (pos < newText.length && prevText[pos] === newText[pos]) pos++;
       let endOld = prevText.length - 1;
@@ -576,7 +584,6 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>((props
     updateActiveStyles();
   }, [emitContentChange]);
 
-  // ===== Active styles =====
   const updateActiveStyles = useCallback(() => {
     if (!editorRef.current) return;
     const styles = detectActiveStyles(editorRef.current);
@@ -584,7 +591,6 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>((props
     onActiveStylesChange?.(styles);
   }, [onActiveStylesChange]);
 
-  // ===== Selection change handler =====
   const handleSelectionChange = useCallback(() => {
     if (!editorRef.current) return;
 
@@ -594,34 +600,27 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>((props
     const range = sel.getRangeAt(0);
     if (!editorRef.current.contains(range.commonAncestorContainer)) return;
 
-    // Emit selection change
     if (onSelectionChange) {
       const start = getTextOffset(editorRef.current, range.startContainer, range.startOffset);
       const end = getTextOffset(editorRef.current, range.endContainer, range.endOffset);
       onSelectionChange({ start, end });
     }
 
-    // Update active styles
     updateActiveStyles();
 
-    // Show/hide toolbar
     if (showToolbar && !readOnly && !range.collapsed) {
-      // Clear any pending hide
       if (hideToolbarTimerRef.current) {
         clearTimeout(hideToolbarTimerRef.current);
         hideToolbarTimerRef.current = null;
       }
-      // Position toolbar
       setTimeout(() => positionToolbar(), 50);
     } else {
-      // Delay hiding to prevent flicker
       hideToolbarTimerRef.current = setTimeout(() => {
         setToolbarVisible(false);
       }, 200);
     }
   }, [showToolbar, readOnly, onSelectionChange, updateActiveStyles]);
 
-  // Listen for selectionchange
   useEffect(() => {
     document.addEventListener('selectionchange', handleSelectionChange);
     return () => {
@@ -629,7 +628,6 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>((props
     };
   }, [handleSelectionChange]);
 
-  // ===== Toolbar positioning =====
   const positionToolbar = useCallback(() => {
     const sel = window.getSelection();
     if (!sel || sel.rangeCount === 0 || sel.isCollapsed) {
@@ -651,14 +649,11 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>((props
     );
     const toolbarHeight = 52;
 
-    // Center horizontally relative to viewport
     let x = (window.innerWidth - toolbarWidth) / 2;
     x = Math.max(8, Math.min(x, window.innerWidth - toolbarWidth - 8));
 
-    // Position below selection by default
     let y = rect.bottom + 8;
 
-    // If toolbar would go off screen at bottom, position above
     if (y + toolbarHeight > window.innerHeight - 8) {
       y = rect.top - toolbarHeight - 8;
       if (y < 8) y = 8;
@@ -668,7 +663,6 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>((props
     setToolbarVisible(true);
   }, [toolbarOptions]);
 
-  // ===== Focus/Blur handlers =====
   const handleFocus = useCallback(() => {
     isFocusedRef.current = true;
     setIsFocused(true);
@@ -676,15 +670,12 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>((props
   }, [onFocus]);
 
   const handleBlur = useCallback((e: React.FocusEvent) => {
-    // Don't blur if clicking on toolbar (toolbar uses preventDefault on mouseDown,
-    // but check relatedTarget as a safety net)
     const relatedTarget = e.relatedTarget as HTMLElement | null;
     if (relatedTarget?.closest('[data-rich-text-toolbar]')) {
       return;
     }
     setTimeout(() => {
       const active = document.activeElement;
-      // Check if focus moved to toolbar or is still in editor
       if (active?.closest('[data-rich-text-toolbar]')) return;
       if (editorRef.current?.contains(active)) return;
 
@@ -695,7 +686,6 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>((props
     }, 150);
   }, [onBlur]);
 
-  // ===== Keyboard shortcuts =====
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     const mod = e.metaKey || e.ctrlKey;
 
@@ -730,7 +720,6 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>((props
         handleInput();
       }
     } else if (e.key === 'Enter') {
-      // Handle list continuation
       handleEnterKey(e);
     }
   }, [emitContentChange, updateActiveStyles, handleInput]);
@@ -742,7 +731,6 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>((props
     const range = sel.getRangeAt(0);
     let node: Node | null = range.startContainer;
 
-    // Find the closest list item
     while (node && node !== editorRef.current) {
       if (node.nodeType === Node.ELEMENT_NODE) {
         const el = node as HTMLElement;
@@ -751,11 +739,9 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>((props
         if (tag === 'li') {
           const text = el.textContent || '';
           if (text.trim() === '') {
-            // Empty list item: exit list
             e.preventDefault();
             const list = el.parentElement;
             if (list) {
-              // Remove the empty li and insert a new paragraph after the list
               el.remove();
               const newDiv = document.createElement('div');
               newDiv.innerHTML = '<br>';
@@ -764,11 +750,9 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>((props
               } else {
                 list.parentNode?.appendChild(newDiv);
               }
-              // Clean up empty list
               if (list.children.length === 0) {
                 list.remove();
               }
-              // Move cursor
               const newRange = document.createRange();
               newRange.setStart(newDiv, 0);
               newRange.collapse(true);
@@ -780,13 +764,10 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>((props
           return;
         }
 
-        // Checklist continuation
         if (el.dataset.type === 'checklist') {
           const text = el.textContent || '';
-          // Remove checkbox characters for check
           const cleanText = text.replace(/^[☐☑]\s*/, '').trim();
           if (cleanText === '') {
-            // Empty checklist item: exit
             e.preventDefault();
             const newDiv = document.createElement('div');
             newDiv.innerHTML = '<br>';
@@ -803,7 +784,6 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>((props
             sel.addRange(newRange);
             handleInput();
           } else {
-            // Continue with new checklist item
             e.preventDefault();
             const newItem = document.createElement('div');
             newItem.dataset.type = 'checklist';
@@ -832,15 +812,12 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>((props
     }
   }, [handleInput]);
 
-  // ===== Toolbar action handler =====
   const handleToolbarAction = useCallback((action: ToolbarOption) => {
     const editor = editorRef.current;
     if (!editor) return;
 
-    // Ensure editor is focused
     editor.focus();
 
-    // Restore selection if needed
     const sel = window.getSelection();
     if (!sel || sel.rangeCount === 0) return;
 
@@ -907,14 +884,11 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>((props
         break;
     }
 
-    // Emit changes after formatting
     setTimeout(() => {
       emitContentChange({ type: 'format', position: 0, style: action });
       updateActiveStyles();
     }, 0);
   }, [emitContentChange, updateActiveStyles]);
-
-  // ===== Formatting helpers =====
 
   const toggleCode = useCallback(() => {
     const sel = window.getSelection();
@@ -922,7 +896,6 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>((props
 
     const range = sel.getRangeAt(0);
 
-    // Check if already in code
     let isCode = false;
     let codeEl: HTMLElement | null = null;
     let node: Node | null = range.startContainer;
@@ -939,7 +912,6 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>((props
     }
 
     if (isCode && codeEl) {
-      // Remove code formatting
       const parent = codeEl.parentNode;
       if (parent) {
         while (codeEl.firstChild) {
@@ -948,7 +920,6 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>((props
         parent.removeChild(codeEl);
       }
     } else {
-      // Apply code formatting
       const fragment = range.extractContents();
       const codeNode = document.createElement('code');
       codeNode.style.fontFamily = 'monospace';
@@ -959,7 +930,6 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>((props
       codeNode.appendChild(fragment);
       range.insertNode(codeNode);
 
-      // Restore selection
       const newRange = document.createRange();
       newRange.selectNodeContents(codeNode);
       sel.removeAllRanges();
@@ -973,7 +943,6 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>((props
 
     const range = sel.getRangeAt(0);
 
-    // Check if already highlighted
     let isHighlighted = false;
     let markEl: HTMLElement | null = null;
     let node: Node | null = range.startContainer;
@@ -990,7 +959,6 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>((props
     }
 
     if (isHighlighted && markEl) {
-      // Remove highlight
       const parent = markEl.parentNode;
       if (parent) {
         while (markEl.firstChild) {
@@ -999,7 +967,6 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>((props
         parent.removeChild(markEl);
       }
     } else {
-      // Apply highlight
       const fragment = range.extractContents();
       const markNode = document.createElement('mark');
       markNode.style.backgroundColor = color || 'rgba(255, 255, 0, 0.5)';
@@ -1017,7 +984,6 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>((props
     const sel = window.getSelection();
     if (!sel || sel.rangeCount === 0) return;
 
-    // Check if already in heading
     let node: Node | null = sel.getRangeAt(0).startContainer;
     let inHeading = false;
     while (node && node !== editorRef.current) {
@@ -1068,12 +1034,10 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>((props
     const range = sel.getRangeAt(0);
     let node: Node | null = range.startContainer;
 
-    // Check if already in checklist
     while (node && node !== editorRef.current) {
       if (node.nodeType === Node.ELEMENT_NODE) {
         const el = node as HTMLElement;
         if (el.dataset.type === 'checklist') {
-          // Remove checklist: convert to plain div
           const textSpan = el.querySelector('[data-checklist-text]');
           const content = textSpan ? textSpan.innerHTML : el.innerHTML.replace(/^[☐☑]\s*/, '');
           const newDiv = document.createElement('div');
@@ -1092,7 +1056,6 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>((props
       node = node.parentNode;
     }
 
-    // Find the current block element
     node = range.startContainer;
     let blockEl: HTMLElement | null = null;
     while (node && node !== editorRef.current) {
@@ -1137,7 +1100,6 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>((props
     if (!url) return;
 
     if (sel && sel.rangeCount > 0 && !sel.isCollapsed) {
-      // Replace selection with link
       const range = sel.getRangeAt(0);
       range.deleteContents();
       const link = document.createElement('a');
@@ -1149,7 +1111,6 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>((props
       link.rel = 'noopener noreferrer';
       range.insertNode(link);
     } else {
-      // Insert link at cursor
       const link = document.createElement('a');
       link.href = url;
       link.textContent = text;
@@ -1167,20 +1128,16 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>((props
     handleInput();
   }, [handleInput]);
 
-  // ===== Click handler for checklists =====
   const handleClick = useCallback((e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
 
-    // Check if clicking on a checkbox character in checklist
     const checklistItem = target.closest('[data-type="checklist"]') as HTMLElement;
     if (checklistItem) {
-      // Check if click is on the checkbox area (first 20px)
       const rect = checklistItem.getBoundingClientRect();
       const clickX = e.clientX - rect.left;
       if (clickX < 25) {
         const isChecked = checklistItem.dataset.checked === 'true';
         checklistItem.dataset.checked = isChecked ? 'false' : 'true';
-        // Update checkbox visual
         const textContent = checklistItem.innerHTML;
         if (isChecked) {
           checklistItem.innerHTML = textContent.replace('☑', '☐').replace('&#9745;', '&#9744;');
@@ -1193,7 +1150,6 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>((props
     }
   }, [handleInput]);
 
-  // ===== Imperative API =====
   useImperativeHandle(ref, () => ({
     setContent: (blocks: Block[]) => {
       if (!editorRef.current) return;
@@ -1410,27 +1366,34 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>((props
     toggleCode, toggleHighlightAction, toggleHeading, toggleQuote, toggleChecklist,
   ]);
 
-  // ===== Paste handler =====
   const handlePaste = useCallback((e: React.ClipboardEvent) => {
     e.preventDefault();
     const text = e.clipboardData.getData('text/plain');
     document.execCommand('insertText', false, text);
   }, []);
 
-  // ===== Styles =====
+  const variantStyles: Record<string, React.CSSProperties> = {
+    outlined: {
+      backgroundColor: '#FFFFFF',
+      border: '1px solid #E0E0E0',
+      borderRadius: 8,
+    },
+    flat: {
+      backgroundColor: '#FFFFFF',
+      border: 'none',
+      borderBottom: '1px solid #E0E0E0',
+      borderRadius: 0,
+    },
+    plain: {
+      backgroundColor: 'transparent',
+      border: 'none',
+      borderRadius: 0,
+    },
+  };
+
   const containerStyle: React.CSSProperties = {
     position: 'relative',
-    backgroundColor: '#FFFFFF',
-    ...(variant === 'outlined'
-      ? {
-          border: '1px solid #E0E0E0',
-          borderRadius: 8,
-        }
-      : {
-          border: 'none',
-          borderBottom: '1px solid #E0E0E0',
-          borderRadius: 0,
-        }),
+    ...variantStyles[variant],
     ...style,
   };
 
@@ -1458,32 +1421,51 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>((props
     lineHeight: 1.3,
   };
 
+  const clampedStyle: React.CSSProperties = readOnly && numberOfLines ? {
+    display: '-webkit-box',
+    WebkitLineClamp: numberOfLines,
+    WebkitBoxOrient: 'vertical' as const,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    padding: '12px 12px 0 12px',
+    fontSize: 16,
+    lineHeight: 1.5,
+    color: '#000000',
+    wordBreak: 'break-word',
+  } : {};
+
   return (
     <>
       <div ref={containerRef} style={containerStyle} className={className}>
         {isEmpty && placeholder && (
           <div style={placeholderStyle}>{placeholder}</div>
         )}
-        <div
-          ref={editorRef}
-          contentEditable={!readOnly}
-          suppressContentEditableWarning
-          onInput={handleInput}
-          onFocus={handleFocus}
-          onBlur={handleBlur}
-          onKeyDown={handleKeyDown}
-          onClick={handleClick}
-          onPaste={handlePaste}
-          style={editorStyle}
-          role="textbox"
-          aria-multiline="true"
-          aria-placeholder={placeholder}
-          data-placeholder={placeholder}
-          spellCheck
-        />
+        {readOnly && numberOfLines && initialContent ? (
+          <div
+            style={clampedStyle}
+            dangerouslySetInnerHTML={{ __html: blocksToInlineHTML(initialContent) }}
+          />
+        ) : (
+          <div
+            ref={editorRef}
+            contentEditable={!readOnly}
+            suppressContentEditableWarning
+            onInput={handleInput}
+            onFocus={handleFocus}
+            onBlur={handleBlur}
+            onKeyDown={handleKeyDown}
+            onClick={handleClick}
+            onPaste={handlePaste}
+            style={editorStyle}
+            role="textbox"
+            aria-multiline="true"
+            aria-placeholder={placeholder}
+            data-placeholder={placeholder}
+            spellCheck
+          />
+        )}
       </div>
 
-      {/* Floating toolbar rendered via portal-like fixed positioning */}
       {showToolbar && !readOnly && (
         <FloatingToolbar
           position={toolbarPosition}
@@ -1494,7 +1476,6 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>((props
         />
       )}
 
-      {/* Editor-specific styles */}
       <style>{`
         [contenteditable] blockquote {
           border-left: 4px solid #E0E0E0;
@@ -1548,7 +1529,6 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>((props
 
 RichTextEditor.displayName = 'RichTextEditor';
 
-// ===== Helper: get text offset =====
 function getTextOffset(root: HTMLElement, targetNode: Node, targetOffset: number): number {
   let offset = 0;
 

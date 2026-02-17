@@ -22,8 +22,9 @@ Built with **contentEditable** and pure React — no dependencies on heavy libra
 - Text alignment (left, center, right)
 - Indent/Outdent
 - Floating toolbar with customizable options
-- Two variants: outlined and flat
+- Three variants: outlined, flat, and plain
 - Auto-growing height
+- `numberOfLines` support for read-only truncation with ellipsis
 - **Delta-based content updates** for optimized performance
 - **Synchronous style detection** via `onActiveStylesChange`
 
@@ -127,10 +128,11 @@ export default App;
 | `placeholder`          | `string`                                | `""`         | Placeholder text                     |
 | `initialContent`       | `Block[]`                               | `[]`         | Initial content blocks               |
 | `readOnly`             | `boolean`                               | `false`      | Make editor read-only                |
+| `numberOfLines`        | `number`                                | `undefined`  | Max lines before truncating with ellipsis (read-only) |
 | `maxHeight`            | `number`                                | `undefined`  | Maximum height before scrolling      |
 | `showToolbar`          | `boolean`                               | `true`       | Show/hide floating toolbar           |
 | `toolbarOptions`       | `ToolbarOption[]`                       | All options  | Customize toolbar buttons            |
-| `variant`              | `'outlined' \| 'flat'`                  | `'outlined'` | Editor style variant                 |
+| `variant`              | `'outlined' \| 'flat' \| 'plain'`       | `'outlined'` | Editor style variant                 |
 | `onContentChange`      | `(event: ContentChangeEvent) => void`   | `undefined`  | Called when content changes           |
 | `onSelectionChange`    | `(event: SelectionChangeEvent) => void` | `undefined`  | Called when selection changes         |
 | `onFocus`              | `() => void`                            | `undefined`  | Called when editor gains focus        |
