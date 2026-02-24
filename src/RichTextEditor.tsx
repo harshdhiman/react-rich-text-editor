@@ -720,6 +720,83 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
       [onContentChange],
     );
 
+    const applyInlineStyleShortcut = useCallback((): boolean => {
+      const editor = editorRef.current;
+      if (!editor) return false;
+
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0 || !sel.isCollapsed) return false;
+
+      const range = sel.getRangeAt(0);
+      if (!editor.contains(range.commonAncestorContainer)) return false;
+      if (range.startContainer.nodeType !== Node.TEXT_NODE) return false;
+
+      const textNode = range.startContainer as Text;
+      const caretOffset = range.startOffset;
+      const fullText = textNode.textContent || "";
+      const textBeforeCaret = fullText.slice(0, caretOffset);
+      if (textBeforeCaret.length < 3) return false;
+
+      const shortcuts: Array<{
+        regex: RegExp;
+        command: "bold" | "italic" | "strikeThrough";
+      }> = [
+        { regex: /(^|\s)\*([^*\n]+)\*$/, command: "bold" },
+        { regex: /(^|\s)_([^_\n]+)_$/, command: "italic" },
+        { regex: /(^|\s)~([^~\n]+)~$/, command: "strikeThrough" },
+      ];
+
+      for (const { regex, command } of shortcuts) {
+        const match = textBeforeCaret.match(regex);
+        if (!match) continue;
+
+        const styledText = match[2];
+        if (!styledText) return false;
+
+        const markerSequenceLength = styledText.length + 2;
+        const markerStart = caretOffset - markerSequenceLength;
+        if (markerStart < 0) return false;
+
+        const prefix = fullText.slice(0, markerStart);
+        const suffix = fullText.slice(caretOffset);
+
+        textNode.textContent = `${prefix}${styledText}${suffix}`;
+
+        const selectRange = document.createRange();
+        selectRange.setStart(textNode, markerStart);
+        selectRange.setEnd(textNode, markerStart + styledText.length);
+        sel.removeAllRanges();
+        sel.addRange(selectRange);
+
+        document.execCommand(command);
+
+        if (sel.rangeCount > 0) {
+          const caretRange = sel.getRangeAt(0);
+          caretRange.collapse(false);
+          sel.removeAllRanges();
+          sel.addRange(caretRange);
+        } else {
+          const fallbackRange = document.createRange();
+          fallbackRange.setStart(textNode, markerStart + styledText.length);
+          fallbackRange.collapse(true);
+          sel.removeAllRanges();
+          sel.addRange(fallbackRange);
+        }
+
+        try {
+          if (document.queryCommandState(command)) {
+            document.execCommand(command);
+          }
+        } catch {
+          //
+        }
+
+        return true;
+      }
+
+      return false;
+    }, []);
+
     const updateActiveStyles = useCallback(() => {
       if (!editorRef.current) return;
       const styles = detectActiveStyles(editorRef.current);
@@ -732,6 +809,8 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
 
       const editor = editorRef.current;
       if (!editor) return;
+
+      applyInlineStyleShortcut();
 
       const newText = editor.innerText || "";
       const prevText = previousTextRef.current;
@@ -780,7 +859,7 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
 
       emitContentChange(delta);
       updateActiveStyles();
-    }, [emitContentChange, updateActiveStyles]);
+    }, [emitContentChange, updateActiveStyles, applyInlineStyleShortcut]);
 
     const handleSelectionChange = useCallback(() => {
       if (!editorRef.current) return;
