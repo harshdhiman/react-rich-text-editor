@@ -1,18 +1,40 @@
-import { CSSProperties } from 'react';
+import { CSSProperties } from "react";
 
 export interface StyleRange {
-  style: 'bold' | 'italic' | 'underline' | 'strikethrough' | 'link' | 'code' | 'highlight';
+  style:
+    | "bold"
+    | "italic"
+    | "underline"
+    | "strikethrough"
+    | "link"
+    | "code"
+    | "highlight";
   start: number;
   end: number;
   url?: string;
   highlightColor?: string;
 }
 
-export type BlockType = 'paragraph' | 'bullet' | 'numbered' | 'heading' | 'quote' | 'checklist';
+export type BlockType =
+  | "paragraph"
+  | "bullet"
+  | "numbered"
+  | "heading"
+  | "quote"
+  | "checklist"
+  | "mediaAttachment";
 
-export type TextAlignment = 'left' | 'center' | 'right';
+export interface MediaAttachment {
+  kind: "image" | "video";
+  uri: string;
+  width?: number;
+  height?: number;
+  alt?: string;
+}
 
-export type EditorVariant = 'outlined' | 'flat' | 'plain';
+export type TextAlignment = "left" | "center" | "right";
+
+export type EditorVariant = "outlined" | "flat" | "plain";
 
 export interface Block {
   type: BlockType;
@@ -21,6 +43,7 @@ export interface Block {
   alignment?: TextAlignment;
   checked?: boolean;
   indentLevel?: number;
+  mediaAttachment?: MediaAttachment;
 }
 
 export interface ContentChangeEvent {
@@ -29,7 +52,7 @@ export interface ContentChangeEvent {
   delta?: ContentDelta;
 }
 
-export type DeltaType = 'insert' | 'delete' | 'format' | 'replace';
+export type DeltaType = "insert" | "delete" | "format" | "replace";
 
 export interface ContentDelta {
   type: DeltaType;
@@ -46,48 +69,50 @@ export interface SelectionChangeEvent {
 }
 
 export type ToolbarOption =
-  | 'bold'
-  | 'italic'
-  | 'strikethrough'
-  | 'underline'
-  | 'code'
-  | 'highlight'
-  | 'heading'
-  | 'bullet'
-  | 'numbered'
-  | 'quote'
-  | 'checklist'
-  | 'link'
-  | 'undo'
-  | 'redo'
-  | 'clearFormatting'
-  | 'indent'
-  | 'outdent'
-  | 'alignLeft'
-  | 'alignCenter'
-  | 'alignRight';
+  | "bold"
+  | "italic"
+  | "strikethrough"
+  | "underline"
+  | "code"
+  | "highlight"
+  | "heading"
+  | "bullet"
+  | "numbered"
+  | "quote"
+  | "checklist"
+  | "mediaAttachment"
+  | "link"
+  | "undo"
+  | "redo"
+  | "clearFormatting"
+  | "indent"
+  | "outdent"
+  | "alignLeft"
+  | "alignCenter"
+  | "alignRight";
 
 export const DEFAULT_TOOLBAR_OPTIONS: ToolbarOption[] = [
-  'bold',
-  'italic',
-  'underline',
-  'strikethrough',
-  'code',
-  'highlight',
-  'heading',
-  'bullet',
-  'numbered',
-  'quote',
-  'checklist',
-  'link',
-  'undo',
-  'redo',
-  'clearFormatting',
-  'indent',
-  'outdent',
-  'alignLeft',
-  'alignCenter',
-  'alignRight',
+  "bold",
+  "italic",
+  "underline",
+  "strikethrough",
+  "code",
+  "highlight",
+  "heading",
+  "bullet",
+  "numbered",
+  "quote",
+  "checklist",
+  "mediaAttachment",
+  "link",
+  "undo",
+  "redo",
+  "clearFormatting",
+  "indent",
+  "outdent",
+  "alignLeft",
+  "alignCenter",
+  "alignRight",
 ];
 
 export interface ActiveStylesState {
@@ -139,6 +164,7 @@ export interface RichTextEditorRef {
   setChecklist: () => void;
   setParagraph: () => void;
   insertLink: (url: string, text: string) => void;
+  insertMediaAttachment: (mediaAttachment: MediaAttachment) => void;
   undo: () => void;
   redo: () => void;
   clearFormatting: () => void;
