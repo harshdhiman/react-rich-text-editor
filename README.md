@@ -18,6 +18,8 @@ Built with **contentEditable** and pure React — no dependencies on heavy libra
 - Headings
 - Quotes and Checklists
 - Link insertion
+- **Media attachments** — embed images and videos
+- **Inline style shortcuts** — markdown-like formatting (`*bold*`, `_italic_`, `~strikethrough~`)
 - Undo/Redo
 - Text alignment (left, center, right)
 - Indent/Outdent
@@ -27,6 +29,54 @@ Built with **contentEditable** and pure React — no dependencies on heavy libra
 - `numberOfLines` support for read-only truncation with ellipsis
 - **Delta-based content updates** for optimized performance
 - **Synchronous style detection** via `onActiveStylesChange`
+
+## Inline Style Shortcuts
+
+Type markdown-like syntax to quickly apply formatting — the markers are automatically replaced with styled text:
+
+| Shortcut | Result |
+|----------|--------|
+| `*text*` | **bold** |
+| `_text_` | *italic* |
+| `~text~` | ~~strikethrough~~ |
+
+## Media Attachments
+
+Embed images and videos directly in the editor. Use the toolbar button or the ref method:
+
+```tsx
+editorRef.current?.insertMediaAttachment({
+  kind: 'image',
+  uri: 'https://example.com/photo.jpg',
+  alt: 'A photo',
+  width: 600,
+  height: 400,
+});
+
+editorRef.current?.insertMediaAttachment({
+  kind: 'video',
+  uri: 'https://example.com/video.mp4',
+  width: 640,
+  height: 360,
+});
+```
+
+Media blocks appear as a `mediaAttachment` block type in the content:
+
+```typescript
+{
+  type: 'mediaAttachment',
+  text: '',
+  styles: [],
+  mediaAttachment: {
+    kind: 'image',
+    uri: 'https://example.com/photo.jpg',
+    alt: 'A photo',
+    width: 600,
+    height: 400,
+  },
+}
+```
 
 ## Why Delta-Based Updates?
 
@@ -172,9 +222,11 @@ editorRef.current?.setParagraph();
 
 // Actions
 editorRef.current?.insertLink(url, text);
+editorRef.current?.insertMediaAttachment({ kind, uri, alt, width, height });
 editorRef.current?.undo();
 editorRef.current?.redo();
 editorRef.current?.clearFormatting();
+editorRef.current?.toggleChecklistItem();
 
 // Indentation
 editorRef.current?.indent();
@@ -194,9 +246,18 @@ interface Block {
   alignment?: TextAlignment;
   checked?: boolean;
   indentLevel?: number;
+  mediaAttachment?: MediaAttachment;
 }
 
-type BlockType = 'paragraph' | 'bullet' | 'numbered' | 'heading' | 'quote' | 'checklist';
+type BlockType = 'paragraph' | 'bullet' | 'numbered' | 'heading' | 'quote' | 'checklist' | 'mediaAttachment';
+
+interface MediaAttachment {
+  kind: 'image' | 'video';
+  uri: string;
+  width?: number;
+  height?: number;
+  alt?: string;
+}
 type TextAlignment = 'left' | 'center' | 'right';
 
 interface StyleRange {
@@ -219,6 +280,7 @@ type ToolbarOption =
   | 'numbered'
   | 'quote'
   | 'checklist'
+  | 'mediaAttachment'
   | 'link'
   | 'undo'
   | 'redo'

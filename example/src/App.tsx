@@ -52,13 +52,19 @@ function App() {
   };
 
   return (
-    <div style={{ maxWidth: 600, margin: '0 auto', padding: 16, fontFamily: 'sans-serif' }}>
+    <div
+      style={{
+        width: '100%',
+        padding: 16,
+        fontFamily: 'sans-serif',
+      }}
+    >
       <h2 style={{ textAlign: 'center' }}>Rich Text Editor Demo</h2>
 
       <p style={{ fontSize: 14, fontWeight: 600, color: '#666' }}>
         Read-Only with numberOfLines=4:
       </p>
-      <RichTextEditor initialContent={sampleContent} readOnly variant="flat" numberOfLines={4} />
+      <RichTextEditor initialContent={sampleContent} readOnly variant="flat" numberOfLines={2} />
 
       <p style={{ fontSize: 14, fontWeight: 600, color: '#666', marginTop: 24 }}>
         Editable Editor:
@@ -68,7 +74,7 @@ function App() {
         placeholder="Start typing..."
         onContentChange={handleContentChange}
         variant="outlined"
-        maxHeight={200}
+        maxHeight={1000}
       />
     </div>
   );
