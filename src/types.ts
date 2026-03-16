@@ -24,9 +24,16 @@ export type BlockType =
   | "checklist"
   | "mediaAttachment";
 
+export type MediaKind = "image" | "video";
+
 export interface MediaAttachment {
-  kind: "image" | "video";
+  kind: MediaKind;
   uri: string;
+  sourceUri?: string;
+  fileName?: string;
+  extension?: string;
+  contentType?: string;
+  fileSize?: number;
   width?: number;
   height?: number;
   alt?: string;
