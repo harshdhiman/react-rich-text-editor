@@ -1,14 +1,15 @@
-export { default as default } from './RichTextEditor';
+export { default as default } from "./RichTextEditor";
 
-export { default as RichTextEditor } from './RichTextEditor';
-export { FloatingToolbar } from './FloatingToolbar';
+export { default as RichTextEditor } from "./RichTextEditor";
+export { FloatingToolbar } from "./FloatingToolbar";
 
-export { DEFAULT_TOOLBAR_OPTIONS } from './types';
+export { DEFAULT_TOOLBAR_OPTIONS } from "./types";
 
 export type {
   Block,
   BlockType,
   StyleRange,
+  MediaKind,
   TextAlignment,
   EditorVariant,
   ContentChangeEvent,
@@ -19,4 +20,4 @@ export type {
   ContentDelta,
   DeltaType,
   ActiveStylesState,
-} from './types';
+} from "./types";

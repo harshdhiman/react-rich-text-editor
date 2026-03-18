@@ -22,6 +22,24 @@ import {
 } from "./types";
 import { FloatingToolbar } from "./FloatingToolbar";
 
+function normalizeMediaAttachment(
+  mediaAttachment: MediaAttachment,
+): MediaAttachment {
+  const uri = mediaAttachment.uri?.trim() || "";
+  return {
+    ...mediaAttachment,
+    uri,
+    sourceUri: mediaAttachment.sourceUri?.trim() || uri,
+  };
+}
+
+function inferFileExtension(fileName?: string): string | undefined {
+  if (!fileName) return undefined;
+  const dotIndex = fileName.lastIndexOf(".");
+  if (dotIndex < 0 || dotIndex === fileName.length - 1) return undefined;
+  return fileName.slice(dotIndex + 1).toLowerCase();
+}
+
 function parseMediaAttachmentFromElement(
   el: HTMLElement,
 ): MediaAttachment | null {
@@ -41,17 +59,25 @@ function parseMediaAttachmentFromElement(
     el.dataset.height || mediaNode.getAttribute("height") || "";
   const width = parseInt(widthAttr, 10);
   const height = parseInt(heightAttr, 10);
+  const fileSize = parseFloat(el.dataset.fileSize || "");
 
-  const sourceUri =
+  const uri =
     el.dataset.uri ||
     mediaNode.getAttribute("src") ||
     (isVideo
       ? (mediaNode.querySelector("source")?.getAttribute("src") ?? "")
       : "");
 
+  const sourceUri = el.dataset.sourceUri || uri;
+
   return {
     kind: isVideo ? "video" : "image",
-    uri: sourceUri,
+    uri,
+    sourceUri,
+    fileName: el.dataset.fileName || undefined,
+    extension: el.dataset.extension || undefined,
+    contentType: el.dataset.contentType || undefined,
+    fileSize: Number.isFinite(fileSize) ? fileSize : undefined,
     alt: el.dataset.alt || mediaNode.getAttribute("alt") || "",
     width: Number.isFinite(width) ? width : undefined,
     height: Number.isFinite(height) ? height : undefined,
@@ -328,15 +354,31 @@ function blocksToHTML(blocks: Block[]): string {
       case "mediaAttachment": {
         const media = block.mediaAttachment;
         if (media?.uri) {
+          const normalized = normalizeMediaAttachment(media);
           const widthAttr = media.width ? ` data-width="${media.width}"` : "";
           const heightAttr = media.height
             ? ` data-height="${media.height}"`
             : "";
-          const altText = media.alt || "";
-          if (media.kind === "video") {
-            html += `<div data-type="mediaAttachment" data-kind="video" data-uri="${escapeAttr(media.uri)}" data-alt="${escapeAttr(altText)}"${widthAttr}${heightAttr}${alignStyle}><video src="${escapeAttr(media.uri)}" controls playsinline preload="metadata" style="display:block;max-width:100%;height:auto;border-radius:8px;"></video></div>`;
+          const sourceUriAttr = ` data-source-uri="${escapeAttr(normalized.sourceUri || normalized.uri)}"`;
+          const fileNameAttr = normalized.fileName
+            ? ` data-file-name="${escapeAttr(normalized.fileName)}"`
+            : "";
+          const extensionAttr = normalized.extension
+            ? ` data-extension="${escapeAttr(normalized.extension)}"`
+            : "";
+          const contentTypeAttr = normalized.contentType
+            ? ` data-content-type="${escapeAttr(normalized.contentType)}"`
+            : "";
+          const fileSizeAttr =
+            typeof normalized.fileSize === "number" &&
+            Number.isFinite(normalized.fileSize)
+              ? ` data-file-size="${normalized.fileSize}"`
+              : "";
+          const altText = normalized.alt || "";
+          if (normalized.kind === "video") {
+            html += `<div data-type="mediaAttachment" data-kind="video" data-uri="${escapeAttr(normalized.uri)}"${sourceUriAttr} data-alt="${escapeAttr(altText)}"${fileNameAttr}${extensionAttr}${contentTypeAttr}${fileSizeAttr}${widthAttr}${heightAttr}${alignStyle}><video src="${escapeAttr(normalized.uri)}" controls playsinline preload="metadata" style="display:block;max-width:100%;height:auto;border-radius:8px;"></video></div>`;
           } else {
-            html += `<div data-type="mediaAttachment" data-kind="image" data-uri="${escapeAttr(media.uri)}" data-alt="${escapeAttr(altText)}"${widthAttr}${heightAttr}${alignStyle}><img src="${escapeAttr(media.uri)}" alt="${escapeAttr(altText)}" style="display:block;max-width:100%;height:auto;border-radius:8px;" /></div>`;
+            html += `<div data-type="mediaAttachment" data-kind="image" data-uri="${escapeAttr(normalized.uri)}"${sourceUriAttr} data-alt="${escapeAttr(altText)}"${fileNameAttr}${extensionAttr}${contentTypeAttr}${fileSizeAttr}${widthAttr}${heightAttr}${alignStyle}><img src="${escapeAttr(normalized.uri)}" alt="${escapeAttr(altText)}" style="display:block;max-width:100%;height:auto;border-radius:8px;" /></div>`;
           }
         }
         i++;
@@ -1194,19 +1236,33 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
 
     const createMediaAttachmentElement = useCallback(
       (mediaAttachment: MediaAttachment) => {
+        const normalized = normalizeMediaAttachment(mediaAttachment);
+        if (!normalized.uri) {
+          return document.createElement("div");
+        }
+
         const mediaDiv = document.createElement("div");
         mediaDiv.dataset.type = "mediaAttachment";
-        mediaDiv.dataset.kind = mediaAttachment.kind;
-        mediaDiv.dataset.uri = mediaAttachment.uri;
-        if (mediaAttachment.alt) mediaDiv.dataset.alt = mediaAttachment.alt;
-        if (mediaAttachment.width)
-          mediaDiv.dataset.width = String(mediaAttachment.width);
-        if (mediaAttachment.height)
-          mediaDiv.dataset.height = String(mediaAttachment.height);
+        mediaDiv.dataset.kind = normalized.kind;
+        mediaDiv.dataset.uri = normalized.uri;
+        mediaDiv.dataset.sourceUri = normalized.sourceUri || normalized.uri;
+        if (normalized.alt) mediaDiv.dataset.alt = normalized.alt;
+        if (normalized.fileName)
+          mediaDiv.dataset.fileName = normalized.fileName;
+        if (normalized.extension)
+          mediaDiv.dataset.extension = normalized.extension;
+        if (normalized.contentType)
+          mediaDiv.dataset.contentType = normalized.contentType;
+        if (typeof normalized.fileSize === "number") {
+          mediaDiv.dataset.fileSize = String(normalized.fileSize);
+        }
+        if (normalized.width) mediaDiv.dataset.width = String(normalized.width);
+        if (normalized.height)
+          mediaDiv.dataset.height = String(normalized.height);
 
-        if (mediaAttachment.kind === "video") {
+        if (normalized.kind === "video") {
           const video = document.createElement("video");
-          video.src = mediaAttachment.uri;
+          video.src = normalized.uri;
           video.controls = true;
           video.setAttribute("playsinline", "true");
           video.preload = "metadata";
@@ -1214,20 +1270,20 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
           video.style.maxWidth = "100%";
           video.style.height = "auto";
           video.style.borderRadius = "8px";
-          if (mediaAttachment.width) {
-            video.style.width = `${mediaAttachment.width}px`;
+          if (normalized.width) {
+            video.style.width = `${normalized.width}px`;
           }
           mediaDiv.appendChild(video);
         } else {
           const img = document.createElement("img");
-          img.src = mediaAttachment.uri;
-          img.alt = mediaAttachment.alt || "";
+          img.src = normalized.uri;
+          img.alt = normalized.alt || "";
           img.style.display = "block";
           img.style.maxWidth = "100%";
           img.style.height = "auto";
           img.style.borderRadius = "8px";
-          if (mediaAttachment.width) {
-            img.style.width = `${mediaAttachment.width}px`;
+          if (normalized.width) {
+            img.style.width = `${normalized.width}px`;
           }
           mediaDiv.appendChild(img);
         }
@@ -1319,6 +1375,11 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
           insertMediaAttachmentBlock({
             kind: "video",
             uri: objectUrl,
+            sourceUri: objectUrl,
+            fileName: file.name || undefined,
+            extension: inferFileExtension(file.name),
+            contentType: file.type || undefined,
+            fileSize: file.size || undefined,
             alt: file.name || "Video",
           });
         } else {
@@ -1327,6 +1388,11 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
             insertMediaAttachmentBlock({
               kind: "image",
               uri: objectUrl,
+              sourceUri: objectUrl,
+              fileName: file.name || undefined,
+              extension: inferFileExtension(file.name),
+              contentType: file.type || undefined,
+              fileSize: file.size || undefined,
               alt: file.name || "Image",
               width: img.naturalWidth || undefined,
               height: img.naturalHeight || undefined,
@@ -1336,6 +1402,11 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
             insertMediaAttachmentBlock({
               kind: "image",
               uri: objectUrl,
+              sourceUri: objectUrl,
+              fileName: file.name || undefined,
+              extension: inferFileExtension(file.name),
+              contentType: file.type || undefined,
+              fileSize: file.size || undefined,
               alt: file.name || "Image",
             });
           };
@@ -1781,8 +1852,9 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
         },
 
         insertMediaAttachment: (mediaAttachment: MediaAttachment) => {
-          trackObjectUrl(mediaAttachment.uri);
-          insertMediaAttachmentBlock(mediaAttachment);
+          const normalized = normalizeMediaAttachment(mediaAttachment);
+          trackObjectUrl(normalized.uri);
+          insertMediaAttachmentBlock(normalized);
           updateActiveStyles();
         },
 
@@ -1900,6 +1972,11 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
             insertMediaAttachmentBlock({
               kind: "image",
               uri: objectUrl,
+              sourceUri: objectUrl,
+              fileName: file.name || undefined,
+              extension: inferFileExtension(file.name),
+              contentType: file.type || undefined,
+              fileSize: file.size || undefined,
               alt: file.name || "Pasted image",
               width: img.naturalWidth || undefined,
               height: img.naturalHeight || undefined,
@@ -1909,6 +1986,11 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
             insertMediaAttachmentBlock({
               kind: "image",
               uri: objectUrl,
+              sourceUri: objectUrl,
+              fileName: file.name || undefined,
+              extension: inferFileExtension(file.name),
+              contentType: file.type || undefined,
+              fileSize: file.size || undefined,
               alt: file.name || "Pasted image",
             });
           };
