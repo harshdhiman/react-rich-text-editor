@@ -1304,52 +1304,41 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
         spacer.innerHTML = "<br>";
 
         const sel = window.getSelection();
-        const hasSelection = sel && sel.rangeCount > 0;
-        const range = hasSelection ? sel!.getRangeAt(0) : null;
+        const range = sel && sel.rangeCount > 0 ? sel.getRangeAt(0) : null;
 
-        if (!range || !editor.contains(range.commonAncestorContainer)) {
-          editor.appendChild(mediaDiv);
-          editor.appendChild(spacer);
-        } else {
+        let topLevelBlock: HTMLElement | null = null;
+
+        // Find the top-level block containing the current selection/cursor
+        if (range && editor.contains(range.commonAncestorContainer)) {
           let node: Node | null = range.startContainer;
-          let blockEl: HTMLElement | null = null;
-
           while (node && node !== editor) {
-            if (node.nodeType === Node.ELEMENT_NODE) {
-              const el = node as HTMLElement;
-              const tag = el.tagName.toLowerCase();
-              if (
-                el.dataset.type === "mediaAttachment" ||
-                el.dataset.type === "checklist" ||
-                tag === "div" ||
-                tag === "p" ||
-                tag === "blockquote" ||
-                /^h[1-6]$/.test(tag) ||
-                tag === "li"
-              ) {
-                blockEl = el;
-                break;
-              }
+            if (
+              node.parentNode === editor &&
+              node.nodeType === Node.ELEMENT_NODE
+            ) {
+              topLevelBlock = node as HTMLElement;
+              break;
             }
             node = node.parentNode;
           }
-
-          if (blockEl?.parentNode) {
-            const parent = blockEl.parentNode;
-            if (blockEl.nextSibling) {
-              parent.insertBefore(mediaDiv, blockEl.nextSibling);
-              parent.insertBefore(spacer, mediaDiv.nextSibling);
-            } else {
-              parent.appendChild(mediaDiv);
-              parent.appendChild(spacer);
-            }
-          } else {
-            range.collapse(true);
-            range.insertNode(spacer);
-            range.insertNode(mediaDiv);
-          }
         }
 
+        // Always insert at the top-level editor child level, never nested inside lists
+        if (topLevelBlock) {
+          if (topLevelBlock.nextSibling) {
+            editor.insertBefore(mediaDiv, topLevelBlock.nextSibling);
+            editor.insertBefore(spacer, mediaDiv.nextSibling);
+          } else {
+            editor.appendChild(mediaDiv);
+            editor.appendChild(spacer);
+          }
+        } else {
+          // No context block found, append at the end of the editor
+          editor.appendChild(mediaDiv);
+          editor.appendChild(spacer);
+        }
+
+        // Move cursor to the spacer element
         if (sel) {
           const newRange = document.createRange();
           newRange.setStart(spacer, 0);
