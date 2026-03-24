@@ -1296,7 +1296,6 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
       (mediaAttachment: MediaAttachment) => {
         const editor = editorRef.current;
         if (!editor || !mediaAttachment.uri) return;
-
         editor.focus();
 
         const mediaDiv = createMediaAttachmentElement(mediaAttachment);
@@ -1304,52 +1303,65 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
         spacer.innerHTML = "<br>";
 
         const sel = window.getSelection();
-        const hasSelection = sel && sel.rangeCount > 0;
-        const range = hasSelection ? sel!.getRangeAt(0) : null;
+        const range = sel && sel.rangeCount > 0 ? sel.getRangeAt(0) : null;
 
-        if (!range || !editor.contains(range.commonAncestorContainer)) {
-          editor.appendChild(mediaDiv);
-          editor.appendChild(spacer);
-        } else {
+        let insertAfterBlock: HTMLElement | null = null;
+
+        // Walk up from cursor/selection to find direct child of editor
+        // If inside a list (ol/ul), ensure we find the list itself, not nested elements
+        if (range && editor.contains(range.commonAncestorContainer)) {
           let node: Node | null = range.startContainer;
-          let blockEl: HTMLElement | null = null;
+          let foundList: HTMLElement | null = null;
 
+          // First pass: look for any ol/ul in the path
           while (node && node !== editor) {
             if (node.nodeType === Node.ELEMENT_NODE) {
               const el = node as HTMLElement;
               const tag = el.tagName.toLowerCase();
-              if (
-                el.dataset.type === "mediaAttachment" ||
-                el.dataset.type === "checklist" ||
-                tag === "div" ||
-                tag === "p" ||
-                tag === "blockquote" ||
-                /^h[1-6]$/.test(tag) ||
-                tag === "li"
-              ) {
-                blockEl = el;
+              if (tag === "ol" || tag === "ul") {
+                foundList = el;
                 break;
               }
             }
             node = node.parentNode;
           }
 
-          if (blockEl?.parentNode) {
-            const parent = blockEl.parentNode;
-            if (blockEl.nextSibling) {
-              parent.insertBefore(mediaDiv, blockEl.nextSibling);
-              parent.insertBefore(spacer, mediaDiv.nextSibling);
-            } else {
-              parent.appendChild(mediaDiv);
-              parent.appendChild(spacer);
-            }
+          // If we found a list, use that as the block to insert after
+          if (foundList) {
+            insertAfterBlock = foundList;
           } else {
-            range.collapse(true);
-            range.insertNode(spacer);
-            range.insertNode(mediaDiv);
+            // No list found, walk up again to find the top-level block
+            node = range.startContainer;
+            while (node && node !== editor) {
+              if (
+                node.parentNode === editor &&
+                node.nodeType === Node.ELEMENT_NODE
+              ) {
+                insertAfterBlock = node as HTMLElement;
+                break;
+              }
+              node = node.parentNode;
+            }
           }
         }
 
+        // Insert media after the block found (ol/ul or other), always at editor level
+        if (insertAfterBlock) {
+          const nextSibling = insertAfterBlock.nextSibling;
+          if (nextSibling) {
+            editor.insertBefore(mediaDiv, nextSibling);
+            editor.insertBefore(spacer, mediaDiv.nextSibling);
+          } else {
+            editor.appendChild(mediaDiv);
+            editor.appendChild(spacer);
+          }
+        } else {
+          // Fallback: append at end
+          editor.appendChild(mediaDiv);
+          editor.appendChild(spacer);
+        }
+
+        // Move cursor to the spacer element
         if (sel) {
           const newRange = document.createRange();
           newRange.setStart(spacer, 0);
