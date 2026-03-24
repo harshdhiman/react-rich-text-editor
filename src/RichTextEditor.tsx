@@ -1296,7 +1296,6 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
       (mediaAttachment: MediaAttachment) => {
         const editor = editorRef.current;
         if (!editor || !mediaAttachment.uri) return;
-        alert("asdqwdqwd22");
         editor.focus();
 
         const mediaDiv = createMediaAttachmentElement(mediaAttachment);
