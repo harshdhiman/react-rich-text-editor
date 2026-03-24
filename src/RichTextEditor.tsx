@@ -1306,34 +1306,58 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
         const sel = window.getSelection();
         const range = sel && sel.rangeCount > 0 ? sel.getRangeAt(0) : null;
 
-        let topLevelBlock: HTMLElement | null = null;
+        let insertAfterBlock: HTMLElement | null = null;
 
-        // Find the top-level block containing the current selection/cursor
+        // Walk up from cursor/selection to find direct child of editor
+        // If inside a list (ol/ul), ensure we find the list itself, not nested elements
         if (range && editor.contains(range.commonAncestorContainer)) {
           let node: Node | null = range.startContainer;
+          let foundList: HTMLElement | null = null;
+
+          // First pass: look for any ol/ul in the path
           while (node && node !== editor) {
-            if (
-              node.parentNode === editor &&
-              node.nodeType === Node.ELEMENT_NODE
-            ) {
-              topLevelBlock = node as HTMLElement;
-              break;
+            if (node.nodeType === Node.ELEMENT_NODE) {
+              const el = node as HTMLElement;
+              const tag = el.tagName.toLowerCase();
+              if (tag === "ol" || tag === "ul") {
+                foundList = el;
+                break;
+              }
             }
             node = node.parentNode;
           }
+
+          // If we found a list, use that as the block to insert after
+          if (foundList) {
+            insertAfterBlock = foundList;
+          } else {
+            // No list found, walk up again to find the top-level block
+            node = range.startContainer;
+            while (node && node !== editor) {
+              if (
+                node.parentNode === editor &&
+                node.nodeType === Node.ELEMENT_NODE
+              ) {
+                insertAfterBlock = node as HTMLElement;
+                break;
+              }
+              node = node.parentNode;
+            }
+          }
         }
 
-        // Always insert at the top-level editor child level, never nested inside lists
-        if (topLevelBlock) {
-          if (topLevelBlock.nextSibling) {
-            editor.insertBefore(mediaDiv, topLevelBlock.nextSibling);
+        // Insert media after the block found (ol/ul or other), always at editor level
+        if (insertAfterBlock) {
+          const nextSibling = insertAfterBlock.nextSibling;
+          if (nextSibling) {
+            editor.insertBefore(mediaDiv, nextSibling);
             editor.insertBefore(spacer, mediaDiv.nextSibling);
           } else {
             editor.appendChild(mediaDiv);
             editor.appendChild(spacer);
           }
         } else {
-          // No context block found, append at the end of the editor
+          // Fallback: append at end
           editor.appendChild(mediaDiv);
           editor.appendChild(spacer);
         }
