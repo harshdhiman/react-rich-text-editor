@@ -378,7 +378,7 @@ function blocksToHTML(blocks: Block[]): string {
           if (normalized.kind === "video") {
             html += `<div data-type="mediaAttachment" data-kind="video" data-uri="${escapeAttr(normalized.uri)}"${sourceUriAttr} data-alt="${escapeAttr(altText)}"${fileNameAttr}${extensionAttr}${contentTypeAttr}${fileSizeAttr}${widthAttr}${heightAttr}${alignStyle}><video src="${escapeAttr(normalized.uri)}" controls playsinline preload="metadata" style="display:block;max-width:100%;height:auto;border-radius:8px;"></video></div>`;
           } else {
-            html += `<div data-type="mediaAttachment" data-kind="image" data-uri="${escapeAttr(normalized.uri)}"${sourceUriAttr} data-alt="${escapeAttr(altText)}"${fileNameAttr}${extensionAttr}${contentTypeAttr}${fileSizeAttr}${widthAttr}${heightAttr}${alignStyle}><img src="${escapeAttr(normalized.uri)}" alt="${escapeAttr(altText)}" style="display:block;max-width:100%;height:auto;border-radius:8px;" /></div>`;
+            html += `<div data-type="mediaAttachment" data-kind="image" data-uri="${escapeAttr(normalized.uri)}"${sourceUriAttr} data-alt="${escapeAttr(altText)}"${fileNameAttr}${extensionAttr}${contentTypeAttr}${fileSizeAttr}${widthAttr}${heightAttr}${alignStyle}><img src="${escapeAttr(normalized.uri)}" alt="${escapeAttr(altText)}" style="display:block;max-width:100%;height:auto;border-radius:8px;min-height:${normalized.height || 0}px;" /></div>`;
           }
         }
         i++;
@@ -413,8 +413,11 @@ function blocksToInlineHTML(blocks: Block[]): string {
           `<video src="${escapeAttr(media.uri)}" controls playsinline preload="metadata" style="display:block;${widthStyle}height:auto;border-radius:8px;"></video>`,
         );
       } else {
+        const minHeightStyle = media.height
+          ? `min-height:${media.height}px;`
+          : "";
         parts.push(
-          `<img src="${escapeAttr(media.uri)}" alt="${escapeAttr(media.alt || "")}" style="display:block;${widthStyle}height:auto;border-radius:8px;" />`,
+          `<img src="${escapeAttr(media.uri)}" alt="${escapeAttr(media.alt || "")}" style="display:block;${widthStyle}height:auto;border-radius:8px;${minHeightStyle}" />`,
         );
       }
       continue;
@@ -682,6 +685,7 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
       maxHeight,
       showToolbar = true,
       toolbarOptions = DEFAULT_TOOLBAR_OPTIONS,
+      toolbarMaxWidth = 400,
       variant = "outlined",
       onContentChange,
       onSelectionChange,
@@ -705,6 +709,9 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
     const hideToolbarTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
       null,
     );
+    const positionToolbarTimerRef = useRef<ReturnType<
+      typeof setTimeout
+    > | null>(null);
     const mediaInputRef = useRef<HTMLInputElement>(null);
     const objectUrlsRef = useRef<Set<string>>(new Set());
 
@@ -903,6 +910,42 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
       updateActiveStyles();
     }, [emitContentChange, updateActiveStyles, applyInlineStyleShortcut]);
 
+    const positionToolbar = useCallback(() => {
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0 || sel.isCollapsed) {
+        setToolbarVisible(false);
+        return;
+      }
+
+      const range = sel.getRangeAt(0);
+      const rect = range.getBoundingClientRect();
+
+      if (rect.width === 0 && rect.height === 0) {
+        setToolbarVisible(false);
+        return;
+      }
+
+      const toolbarWidth = Math.min(
+        toolbarOptions.length * 36 + (toolbarOptions.length - 1) * 8 + 48,
+        toolbarMaxWidth,
+        window.innerWidth * 0.9,
+      );
+      const toolbarHeight = 52;
+
+      let x = rect.left + rect.width / 2 - toolbarWidth / 2;
+      x = Math.max(8, Math.min(x, window.innerWidth - toolbarWidth - 8));
+
+      let y = rect.bottom + 8;
+
+      if (y + toolbarHeight > window.innerHeight - 8) {
+        y = rect.top - toolbarHeight - 8;
+        if (y < 8) y = 8;
+      }
+
+      setToolbarPosition({ x, y });
+      setToolbarVisible(true);
+    }, [toolbarOptions, toolbarMaxWidth]);
+
     const handleSelectionChange = useCallback(() => {
       if (!editorRef.current) return;
 
@@ -933,13 +976,29 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
           clearTimeout(hideToolbarTimerRef.current);
           hideToolbarTimerRef.current = null;
         }
-        setTimeout(() => positionToolbar(), 50);
+        if (positionToolbarTimerRef.current) {
+          clearTimeout(positionToolbarTimerRef.current);
+        }
+        positionToolbarTimerRef.current = setTimeout(
+          () => positionToolbar(),
+          50,
+        );
       } else {
+        if (positionToolbarTimerRef.current) {
+          clearTimeout(positionToolbarTimerRef.current);
+          positionToolbarTimerRef.current = null;
+        }
         hideToolbarTimerRef.current = setTimeout(() => {
           setToolbarVisible(false);
         }, 200);
       }
-    }, [showToolbar, readOnly, onSelectionChange, updateActiveStyles]);
+    }, [
+      showToolbar,
+      readOnly,
+      onSelectionChange,
+      updateActiveStyles,
+      positionToolbar,
+    ]);
 
     useEffect(() => {
       document.addEventListener("selectionchange", handleSelectionChange);
@@ -948,40 +1007,19 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
       };
     }, [handleSelectionChange]);
 
-    const positionToolbar = useCallback(() => {
-      const sel = window.getSelection();
-      if (!sel || sel.rangeCount === 0 || sel.isCollapsed) {
-        setToolbarVisible(false);
-        return;
-      }
-
-      const range = sel.getRangeAt(0);
-      const rect = range.getBoundingClientRect();
-
-      if (rect.width === 0 && rect.height === 0) {
-        setToolbarVisible(false);
-        return;
-      }
-
-      const toolbarWidth = Math.min(
-        toolbarOptions.length * 36 + (toolbarOptions.length - 1) * 8 + 48,
-        window.innerWidth * 0.9,
-      );
-      const toolbarHeight = 52;
-
-      let x = (window.innerWidth - toolbarWidth) / 2;
-      x = Math.max(8, Math.min(x, window.innerWidth - toolbarWidth - 8));
-
-      let y = rect.bottom + 8;
-
-      if (y + toolbarHeight > window.innerHeight - 8) {
-        y = rect.top - toolbarHeight - 8;
-        if (y < 8) y = 8;
-      }
-
-      setToolbarPosition({ x, y });
-      setToolbarVisible(true);
-    }, [toolbarOptions]);
+    useEffect(() => {
+      const handleScrollOrResize = () => {
+        if (toolbarVisible) {
+          positionToolbar();
+        }
+      };
+      window.addEventListener("scroll", handleScrollOrResize, true);
+      window.addEventListener("resize", handleScrollOrResize);
+      return () => {
+        window.removeEventListener("scroll", handleScrollOrResize, true);
+        window.removeEventListener("resize", handleScrollOrResize);
+      };
+    }, [toolbarVisible, positionToolbar]);
 
     const handleFocus = useCallback(() => {
       isFocusedRef.current = true;
@@ -1280,6 +1318,9 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
           img.alt = normalized.alt || "";
           img.style.display = "block";
           img.style.maxWidth = "100%";
+          img.style.minHeight = normalized.height
+            ? `${normalized.height}px`
+            : "";
           img.style.height = "auto";
           img.style.borderRadius = "8px";
           if (normalized.width) {
@@ -2131,6 +2172,7 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
             options={toolbarOptions}
             onAction={handleToolbarAction}
             visible={toolbarVisible}
+            maxWidth={toolbarMaxWidth}
           />
         )}
 

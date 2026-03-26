@@ -143,6 +143,7 @@ export interface RichTextEditorProps {
   maxHeight?: number;
   showToolbar?: boolean;
   toolbarOptions?: ToolbarOption[];
+  toolbarMaxWidth?: number;
   variant?: EditorVariant;
   onContentChange?: (event: ContentChangeEvent) => void;
   onSelectionChange?: (event: SelectionChangeEvent) => void;
