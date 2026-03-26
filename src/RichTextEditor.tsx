@@ -682,6 +682,7 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
       maxHeight,
       showToolbar = true,
       toolbarOptions = DEFAULT_TOOLBAR_OPTIONS,
+      toolbarMaxWidth = 400,
       variant = "outlined",
       onContentChange,
       onSelectionChange,
@@ -705,6 +706,9 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
     const hideToolbarTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
       null,
     );
+    const positionToolbarTimerRef = useRef<ReturnType<
+      typeof setTimeout
+    > | null>(null);
     const mediaInputRef = useRef<HTMLInputElement>(null);
     const objectUrlsRef = useRef<Set<string>>(new Set());
 
@@ -903,6 +907,42 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
       updateActiveStyles();
     }, [emitContentChange, updateActiveStyles, applyInlineStyleShortcut]);
 
+    const positionToolbar = useCallback(() => {
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0 || sel.isCollapsed) {
+        setToolbarVisible(false);
+        return;
+      }
+
+      const range = sel.getRangeAt(0);
+      const rect = range.getBoundingClientRect();
+
+      if (rect.width === 0 && rect.height === 0) {
+        setToolbarVisible(false);
+        return;
+      }
+
+      const toolbarWidth = Math.min(
+        toolbarOptions.length * 36 + (toolbarOptions.length - 1) * 8 + 48,
+        toolbarMaxWidth,
+        window.innerWidth * 0.9,
+      );
+      const toolbarHeight = 52;
+
+      let x = rect.left + rect.width / 2 - toolbarWidth / 2;
+      x = Math.max(8, Math.min(x, window.innerWidth - toolbarWidth - 8));
+
+      let y = rect.bottom + 8;
+
+      if (y + toolbarHeight > window.innerHeight - 8) {
+        y = rect.top - toolbarHeight - 8;
+        if (y < 8) y = 8;
+      }
+
+      setToolbarPosition({ x, y });
+      setToolbarVisible(true);
+    }, [toolbarOptions, toolbarMaxWidth]);
+
     const handleSelectionChange = useCallback(() => {
       if (!editorRef.current) return;
 
@@ -933,13 +973,29 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
           clearTimeout(hideToolbarTimerRef.current);
           hideToolbarTimerRef.current = null;
         }
-        setTimeout(() => positionToolbar(), 50);
+        if (positionToolbarTimerRef.current) {
+          clearTimeout(positionToolbarTimerRef.current);
+        }
+        positionToolbarTimerRef.current = setTimeout(
+          () => positionToolbar(),
+          50,
+        );
       } else {
+        if (positionToolbarTimerRef.current) {
+          clearTimeout(positionToolbarTimerRef.current);
+          positionToolbarTimerRef.current = null;
+        }
         hideToolbarTimerRef.current = setTimeout(() => {
           setToolbarVisible(false);
         }, 200);
       }
-    }, [showToolbar, readOnly, onSelectionChange, updateActiveStyles]);
+    }, [
+      showToolbar,
+      readOnly,
+      onSelectionChange,
+      updateActiveStyles,
+      positionToolbar,
+    ]);
 
     useEffect(() => {
       document.addEventListener("selectionchange", handleSelectionChange);
@@ -948,40 +1004,19 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
       };
     }, [handleSelectionChange]);
 
-    const positionToolbar = useCallback(() => {
-      const sel = window.getSelection();
-      if (!sel || sel.rangeCount === 0 || sel.isCollapsed) {
-        setToolbarVisible(false);
-        return;
-      }
-
-      const range = sel.getRangeAt(0);
-      const rect = range.getBoundingClientRect();
-
-      if (rect.width === 0 && rect.height === 0) {
-        setToolbarVisible(false);
-        return;
-      }
-
-      const toolbarWidth = Math.min(
-        toolbarOptions.length * 36 + (toolbarOptions.length - 1) * 8 + 48,
-        window.innerWidth * 0.9,
-      );
-      const toolbarHeight = 52;
-
-      let x = (window.innerWidth - toolbarWidth) / 2;
-      x = Math.max(8, Math.min(x, window.innerWidth - toolbarWidth - 8));
-
-      let y = rect.bottom + 8;
-
-      if (y + toolbarHeight > window.innerHeight - 8) {
-        y = rect.top - toolbarHeight - 8;
-        if (y < 8) y = 8;
-      }
-
-      setToolbarPosition({ x, y });
-      setToolbarVisible(true);
-    }, [toolbarOptions]);
+    useEffect(() => {
+      const handleScrollOrResize = () => {
+        if (toolbarVisible) {
+          positionToolbar();
+        }
+      };
+      window.addEventListener("scroll", handleScrollOrResize, true);
+      window.addEventListener("resize", handleScrollOrResize);
+      return () => {
+        window.removeEventListener("scroll", handleScrollOrResize, true);
+        window.removeEventListener("resize", handleScrollOrResize);
+      };
+    }, [toolbarVisible, positionToolbar]);
 
     const handleFocus = useCallback(() => {
       isFocusedRef.current = true;
@@ -2131,6 +2166,7 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
             options={toolbarOptions}
             onAction={handleToolbarAction}
             visible={toolbarVisible}
+            maxWidth={toolbarMaxWidth}
           />
         )}
 
