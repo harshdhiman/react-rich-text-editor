@@ -48,7 +48,7 @@ function App() {
   const editorRef = useRef<RichTextEditorRef>(null);
 
   const handleContentChange = (event: ContentChangeEvent) => {
-    console.log('Content changed:', event.text);
+    console.log('Content changed:', event.blocks);
   };
 
   return (

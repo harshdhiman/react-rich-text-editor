@@ -261,6 +261,32 @@ function parseBlocksFromDOM(editor: HTMLElement): Block[] {
       blocks.push({ type: "paragraph", text, styles, alignment });
       return;
     }
+
+    // Handle inline elements (b, strong, i, em, u, s, span, etc.) that appear
+    // as direct children of the editor (e.g., when entire text is bolded)
+    const { text, styles } = extractInlineStyles(el);
+    if (text) {
+      const alignment = getElementAlignment(el);
+      // Wrap the inline element itself so its own tag is also detected
+      const wrapperStyles: StyleRange[] = [];
+      if (tag === "b" || tag === "strong") {
+        wrapperStyles.push({ style: "bold", start: 0, end: text.length });
+      } else if (tag === "i" || tag === "em") {
+        wrapperStyles.push({ style: "italic", start: 0, end: text.length });
+      } else if (tag === "u") {
+        wrapperStyles.push({ style: "underline", start: 0, end: text.length });
+      } else if (tag === "s" || tag === "strike" || tag === "del") {
+        wrapperStyles.push({ style: "strikethrough", start: 0, end: text.length });
+      } else if (tag === "code") {
+        wrapperStyles.push({ style: "code", start: 0, end: text.length });
+      } else if (tag === "mark") {
+        wrapperStyles.push({ style: "highlight", start: 0, end: text.length });
+      } else if (tag === "a") {
+        wrapperStyles.push({ style: "link", start: 0, end: text.length, url: el.getAttribute("href") || "" });
+      }
+      const allStyles = [...wrapperStyles, ...styles];
+      blocks.push({ type: "paragraph", text, styles: allStyles, alignment });
+    }
   }
 
   if (editor.childNodes.length === 0) {
