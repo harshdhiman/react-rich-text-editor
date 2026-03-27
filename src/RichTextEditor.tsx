@@ -404,7 +404,7 @@ function blocksToHTML(blocks: Block[]): string {
           if (normalized.kind === "video") {
             html += `<div data-type="mediaAttachment" data-kind="video" data-uri="${escapeAttr(normalized.uri)}"${sourceUriAttr} data-alt="${escapeAttr(altText)}"${fileNameAttr}${extensionAttr}${contentTypeAttr}${fileSizeAttr}${widthAttr}${heightAttr}${alignStyle}><video src="${escapeAttr(normalized.uri)}" controls playsinline preload="metadata" style="display:block;max-width:100%;height:auto;border-radius:8px;"></video></div>`;
           } else {
-            html += `<div data-type="mediaAttachment" data-kind="image" data-uri="${escapeAttr(normalized.uri)}"${sourceUriAttr} data-alt="${escapeAttr(altText)}"${fileNameAttr}${extensionAttr}${contentTypeAttr}${fileSizeAttr}${widthAttr}${heightAttr}${alignStyle}><img src="${escapeAttr(normalized.uri)}" alt="${escapeAttr(altText)}" style="display:block;max-width:100%;height:auto;border-radius:8px;min-height:${normalized.height || 0}px;" /></div>`;
+            html += `<div data-type="mediaAttachment" data-kind="image" data-uri="${escapeAttr(normalized.uri)}"${sourceUriAttr} data-alt="${escapeAttr(altText)}"${fileNameAttr}${extensionAttr}${contentTypeAttr}${fileSizeAttr}${widthAttr}${heightAttr}${alignStyle}><img src="${escapeAttr(normalized.uri)}" alt="${escapeAttr(altText)}" style="display:block;max-width:100%;height:auto;border-radius:8px;" /></div>`;
           }
         }
         i++;
@@ -439,11 +439,8 @@ function blocksToInlineHTML(blocks: Block[]): string {
           `<video src="${escapeAttr(media.uri)}" controls playsinline preload="metadata" style="display:block;${widthStyle}height:auto;border-radius:8px;"></video>`,
         );
       } else {
-        const minHeightStyle = media.height
-          ? `min-height:${media.height}px;`
-          : "";
         parts.push(
-          `<img src="${escapeAttr(media.uri)}" alt="${escapeAttr(media.alt || "")}" style="display:block;${widthStyle}height:auto;border-radius:8px;${minHeightStyle}" />`,
+          `<img src="${escapeAttr(media.uri)}" alt="${escapeAttr(media.alt || "")}" style="display:block;${widthStyle}height:auto;border-radius:8px;" />`,
         );
       }
       continue;
@@ -1344,9 +1341,6 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
           img.alt = normalized.alt || "";
           img.style.display = "block";
           img.style.maxWidth = "100%";
-          img.style.minHeight = normalized.height
-            ? `${normalized.height}px`
-            : "";
           img.style.height = "auto";
           img.style.borderRadius = "8px";
           if (normalized.width) {
